@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title><%= title %></title>
+	<link rel="stylesheet" href="./css/ionicons.min.css">
+	<link rel="stylesheet" href="./css/bootstrap.min.css">
+	<style>
+		body {
+			background: url('./img/bg.jpg') no-repeat;
+			background-size: cover;
+		}
+		ul {
+			list-style-type: none;
+		}
+		i {
+			font-size: 30px;
+		}
+		li i:hover {
+			color: green;
+		}
+		.white-opac {
+			background: rgba(255, 255, 255, 0.75);
+			padding: 10px;
+		}
+		a {
+			color: #FFF;
+		}
+	</style>
+</head>
+<body>
+	
+	<div class="container">
+		<div class="row white-opac">
+		<div class="col-md-12">
+			<img src="./img/logo-liggande-webb2.png" alt="">
+			<hr>
+		</div>
+			<div class="col-md-12 white-opac"><div id="app"></div></div>
+		</div>
+	</div>
+
+	<footer>
+		<div class="container white-opac">
+			<div class="row">
+				<div class="col-md-12">
+					<div style="text-align: center;">
+						Kosmiska Sammandrabbningar is a Swedish non-profit organisation <br>
+						Built using <a href="http://nodejs.org/" target="_blank">nodeJS</a>,
+						<a href="http://backbonejs.org/" target="_blank">BackboneJS</a>,
+						<a href="http://sequelizejs.com/" target="_blank">SequelizeJS</a>,
+						<a href="http://jquery.com/" target="_blank">jQuery</a>,
+						<a href="http://www.chartjs.org/" target="_blank">ChartJS</a><br>
+						Logotype created by the awesome <a href="#">Erica Liljeblad</a>, <3 <br>
+						We are a part of and follow SVEROKs <a href="http://wiki.sverok.se/wiki/F%C3%B6reningsdirektiv_2013" target="_blank">rules</a>
+						<br>
+						Background provided by NASA, <a href="http://www.cellphone-wallpapers.net/Wallpapers/User/164-NASA---The-Horsehead-Nebula,-B33,-Orion-Nebula.jpg" target="_blank">source</a>
+						<br>
+						Kudos to <a href="http://webcloud.se/" target="_blank">Daniel Stocks</a><br>
+						<img src="./img/kopimi.png">
+					</div>
+				</div>
+			</div>
+		</div>
+	</footer>
+
+	<script src="./js/jquery.min.js"></script>
+	<script src="./js/jquery-cookie.js"></script>
+	<script src="./js/underscore.js"></script>	
+	<script src="./js/backbone-min.js"></script>
+	<script src="./js/chart.js"></script>
+	<script src="./js/functions.js"></script>
+
+	<script>
+
+	var numberStrings = {
+		2 : 'two',
+		3 : 'three',
+		4 : 'four',
+		5 : 'five',
+		6 : 'six',
+		7 : 'seven',
+		8 : 'eight',
+		9 : 'nine',
+		10 : 'ten'
+ 	};
+
+ 	var graphColors = ['#F38630', '#E0E4CC', '#69D2E7', '#968363', '#c205b2', '#f78f8f'];
+
+	Question = Backbone.Model.extend({
+		urlRoot  : '/q',
+		defaults : {
+			question : '',
+			life	 : ''
+		}
+	});
+
+	QuestionCollection = Backbone.Collection.extend({
+		model: Question,
+		url: '/q'
+	});
+
+	QuestionListView = Backbone.View.extend({
+		tagName: 'ul',
+		initialize: function(){
+			this.collection.on("sync", this.render, this);
+		},
+		render: function(){
+			this.$el.empty();
+			var self = this;
+			this.collection.each(function(model) {
+				self.$el.append('<li><a href="/#/questions/' + model.get('id') + '">' + model.get('question') + '</a></li>');
+			});
+
+			this.$el.append('<button class="btn btn-success"><a href="/#/questions/create">Add new question</a></button>');
+		}
+	});
+
+	AnswerListView = Backbone.View.extend({
+		tagName: 'ul',
+		render: function() {
+			this.$el.empty();
+			var self = this;
+			this.collection.each(function(model) {
+				self.$el.append('<li><label><input type="radio" name="answer" value="' + model.get('id') + '">' + model.get('answer') + '</label></li>');
+			});
+
+			this.$el.append('<input type="hidden" name="question_id" value="'+ this.collection.models[0].get('QuestionId') +'">');
+
+			return this.el;
+		}
+	});
+
+	AnswerCreateView = Backbone.View.extend({
+		tagName: 'ul',
+		initialize: function(){
+			this.collection.on("sync remove", this.render, this);
+		},
+		events: {
+			'click #add' 		: 'addAnswer',
+			'click #remove' 	: 'removeAnswer'
+		},
+		addAnswer: function(e){
+			e.preventDefault();
+			this.collection.create({
+				answer 	: $("#answer").val()
+			});
+			$("#answer").empty();
+		},
+		removeAnswer: function(e){
+			e.preventDefault();
+			var model = this.collection.get(e.target.dataset.id);
+			model.destroy();
+		},
+		render: function(){
+			this.$el.empty();
+			var self = this;
+
+			this.collection.each(function(model){
+				self.$el.append('<li>' + model.get('answer') + '<button id="remove" data-id="' + model.get('id') + '">[ delete ]</button></label></li>');
+			});
+
+			this.$el.append('<input type="text" id="answer"><button id="add">Add answer</button>');
+
+			return this.el;
+		}
+	});
+
+	QuestionCreateView = Backbone.View.extend({
+		tagName: 'form',
+		initialize: function(){
+			this.model.on("sync", this.addAnswers, this);
+			this.render();
+		},
+		events: {
+			'click input[name=saveQuestion]' : 'saveQuestion'
+		},
+		saveQuestion: function(e){
+			e.preventDefault();
+			this.$el.find('input[name=saveQuestion]').remove();
+			var self = this;
+			this.model.save({
+				question: this.$el.find('#question').val(),
+			}, {
+				success: function(res) {
+					var collection = new Backbone.Collection();
+					collection.url = '/q/' + res.id + '/a';
+
+					var answerCreateView = new AnswerCreateView({
+						collection: collection
+					});
+
+					$("#app").append(answerCreateView.render());
+				}
+			});
+		},
+		render: function(){
+			this.$el.empty();
+			this.$el.append('Question: <input type="text" id="question"><br><br>');
+			this.$el.append('<input type="submit" name="saveQuestion" value="Save question!" class="btn btn-success">');
+			return this.el;
+		}
+	});
+
+	QuestionView = Backbone.View.extend({
+		initialize: function(){
+			this.model.on("sync", function() {
+				var collection 	= new Backbone.Collection();
+				collection.add(this.model.get('answers'));
+
+				this.answerListView = new AnswerListView({
+					collection: collection
+				});
+
+				this.render();
+			}, this);
+
+		},
+		events: {
+			'click input[type=submit]' : 'vote'
+		},
+		vote: function(e){
+			e.preventDefault();
+			if (typeof this.$el.find('input:checked').val() === 'undefined')
+			{
+				var numString = numberStrings[this.$el.find('input[type=radio]').length];
+				this.$el.find('#error').html('Stop. Who would cross the Bridge of Death must answer me these questions '+ numString +', ere the other side he see.');
+			} else {
+				var self = this;
+				$.post('/q/'+ this.$el.find('input[name=question_id]').val() +'/a/'+ this.$el.find('input:checked').val() +'/v', function(vote) {
+					$.cookie('kosmopoll_cookie_' + self.$el.find('input[name=question_id]').val(), self.$el.find('input[name=question_id]').val());
+					self.showResult();
+				});
+			}
+		},
+		showResult: function() {
+			this.$el.empty();
+			var data = [];
+			var i 	 = 0;
+			var self = this;
+
+			this.$el.append('<canvas id="chart" width="200" height="200"></canvas>');
+			
+			$.get('/q/' + this.model.get('id') + '/v', function(result) {
+				result.answers.forEach(function(answer) {
+
+					data.push({
+						value: $(answer.votes).toArray().length,
+						color: graphColors[i],
+						title: answer.answer
+					});
+
+					i++;
+
+					if (i == result.answers.length)
+					{
+						new Chart(document.getElementById("chart").getContext("2d")).Pie(data, defaults = {
+							animation: true,
+							onAnimationComplete: function(){
+								data.sort(function(a, b) {
+									return b.value - a.value;
+								});
+								var j = 1;
+								data.forEach(function(segment){
+									self.$el.append('<li>#' + j + ' - ' + segment.title + ' - ' + segment.value + '</li>');
+									j++;
+								});
+							}
+						});
+					}
+				});
+			});
+		},
+		render: function(){
+			if (typeof $.cookie('kosmopoll_cookie_' + this.model.get('id')) !== 'undefined' && $.cookie('kosmopoll_cookie_' + this.model.get('id')) == this.model.get('id'))
+			{
+				this.showResult();
+			}
+			else {
+				this.$el.empty();
+				this.$el.append('<h1>' + this.model.get('question') + '</h1>');
+				this.$el.append('<span id="error"></span>');
+				this.$el.append(this.answerListView.render());
+				this.$el.append('<input type="submit">');
+			}
+		}
+	});
+
+	AppRouter = Backbone.Router.extend({
+		routes : {
+			""	: "index",
+			"questions/create"  : "createPoll",
+			"questions/:id"		: "getPoll"
+		},
+		index: function(){
+
+			var questionCollection  = new QuestionCollection();
+			var questionListView 	= new QuestionListView({
+				collection: questionCollection,
+			});
+
+			questionCollection.fetch();
+
+			$("#app").html(questionListView.el);
+
+		},
+		createPoll: function(){
+			var question = new Question();
+
+			var questionCreateView = new QuestionCreateView({
+				model: question
+			});
+
+			$("#app").html(questionCreateView.el);
+		},
+		getPoll: function(id){
+			var question 	 = new Question({id : id});
+			var questionView = new QuestionView({
+				model: question
+			});
+
+			question.fetch();
+
+			$("#app").html(questionView.el);
+		}
+
+	});
+
+	var appRouter = new AppRouter;
+
+	Backbone.history.start(); // For Backbone routes to function
+
+	</script>
+
+</body>
+</html>
